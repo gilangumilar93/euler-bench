@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Euler Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: problem index rail on the left, one working sheet (problem → workbench → professor's review) on the right */
+:root{
+  --bg:#f3f5f6; --sheet:#ffffff; --grid:#e6eaee; --fg:#17202a; --muted:#5d6975; --line:#d6dce2;
+  --accent:#2f43c4; --accent-ink:#ffffff; --ok:#16794a; --ok-bg:#e3f3ea; --bad:#b4322a; --bad-bg:#f8e5e3; --code-bg:#f1f3f7;
+  --f-display:"Newsreader", Georgia, "Times New Roman", serif;
+  --f-body:"Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1317; --sheet:#151c22; --grid:#1c252c; --fg:#e3e8ec; --muted:#93a0ab; --line:#29343d;
+  --accent:#8c9cff; --accent-ink:#0e1317; --ok:#5fd39a; --ok-bg:#16301f; --bad:#ff8a80; --bad-bg:#3a1a18; --code-bg:#0f1519; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1317; --sheet:#151c22; --grid:#1c252c; --fg:#e3e8ec; --muted:#93a0ab; --line:#29343d;
+  --accent:#8c9cff; --accent-ink:#0e1317; --ok:#5fd39a; --ok-bg:#16301f; --bad:#ff8a80; --bad-bg:#3a1a18; --code-bg:#0f1519; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:28px;max-width:1120px;margin:0 auto;padding-inline:16px;padding-block:24px 48px}
+header.top{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
+header.top h1{font-family:var(--f-display);font-weight:600;font-size:28px;margin:0;letter-spacing:-.01em}
+header.top .score{font-family:var(--f-mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+nav.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);align-self:start;max-height:calc(100vh - 40px);overflow:auto}
+.rail-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+.plist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.plist button{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:34px 1fr 10px;gap:8px;align-items:center;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13.5px;color:var(--fg)}
+.plist button:hover{background:var(--grid)}
+.plist button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.plist button[aria-current="true"]{background:var(--sheet);box-shadow:inset 0 0 0 1px var(--line)}
+.plist .n{font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.plist .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--line)}
+.dot.tried{border-color:var(--bad)}
+.dot.solved{background:var(--ok);border-color:var(--ok)}
+.rail-note{font-size:12px;color:var(--muted);margin-top:14px}
+.mobile-pick{display:none}
+main{min-width:0;display:flex;flex-direction:column;gap:22px}
+.sheet{background:var(--sheet);border:1px solid var(--line);border-radius:10px;padding:22px 24px}
+.problem{background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:22px 22px;background-color:var(--sheet)}
+.eyebrow{font-family:var(--f-mono);font-size:12px;color:var(--accent);letter-spacing:.04em;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pill{font-family:var(--f-body);font-size:11px;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.06em}
+.pill.solved{background:var(--ok-bg);color:var(--ok)}
+.pill.open{background:var(--grid);color:var(--muted)}
+.problem h2{font-family:var(--f-display);font-weight:600;font-size:30px;line-height:1.15;margin:6px 0 12px;text-wrap:balance}
+.statement{font-family:var(--f-display);font-size:18.5px;line-height:1.6;max-width:65ch}
+.statement p{margin:0 0 10px;background:var(--sheet);display:inline}
+.statement p+p{display:block;margin-top:10px}
+.statement code{font-family:var(--f-mono);font-size:.85em}
+.bench h3,.review h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 14px;font-weight:600}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.field label{font-weight:600;font-size:13.5px}
+.field .hint{font-size:12.5px;color:var(--muted);font-weight:400}
+textarea,input,select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px;width:100%}
+textarea:focus,input:focus,select:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+#approach{min-height:110px;resize:vertical}
+#code{min-height:220px;resize:vertical;font-family:var(--f-mono);font-size:13px;line-height:1.5;tab-size:4;white-space:pre;background:var(--code-bg)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.row .field{flex:1 1 180px;margin-bottom:0}
+#lang{width:auto;min-width:140px}
+#answer{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.btn{all:unset;box-sizing:border-box;cursor:pointer;padding:10px 18px;border-radius:7px;font-weight:600;font-size:14px;background:var(--accent);color:var(--accent-ink)}
+.btn:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.btn[disabled]{opacity:.5;cursor:default}
+.btn.ghost{background:transparent;color:var(--accent);box-shadow:inset 0 0 0 1px var(--line)}
+.status{font-size:13px;color:var(--muted)}
+.verdict{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;font-weight:600;margin-bottom:14px}
+.verdict.ok{background:var(--ok-bg);color:var(--ok)}
+.verdict.bad{background:var(--bad-bg);color:var(--bad)}
+.verdict.none{background:var(--grid);color:var(--muted)}
+.notes{max-width:68ch}
+.notes h4{font-family:var(--f-display);font-size:19px;font-weight:600;margin:18px 0 6px}
+.notes h4:first-child{margin-top:0}
+.notes p{margin:0 0 10px}
+.notes ul{margin:0 0 10px;padding-left:20px}
+.notes code{font-family:var(--f-mono);font-size:.88em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.notes pre{background:var(--code-bg);border:1px solid var(--line);border-radius:7px;padding:12px;overflow-x:auto;font-family:var(--f-mono);font-size:13px;line-height:1.5}
+.notes pre code{background:none;padding:0}
+.empty{color:var(--muted);font-size:14px}
+.history{margin-top:18px;border-top:1px solid var(--line);padding-top:12px;font-size:12.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+@media (max-width:760px){
+  .wrap{grid-template-columns:minmax(0,1fr)}
+  nav.rail{display:none}
+  .mobile-pick{display:block}
+  .sheet{padding:18px 16px}
+  .problem h2{font-size:25px}
+  .statement{font-size:17px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.settings summary{cursor:pointer;font-weight:600;font-size:14px}
+.settings .grid2{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+.settings .grid2 .field{flex:1 1 220px;margin-bottom:0}
+.settings p{font-size:13px;color:var(--muted);margin:10px 0 0;max-width:70ch}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <h1>Euler Bench</h1>
+    <span class="score" id="score">0 / 25 solved</span>
+  </header>
+
+  <nav class="rail" aria-label="Problems">
+    <p class="rail-label">Problems</p>
+    <ul class="plist" id="plist"></ul>
+    <p class="rail-note">Problems 8, 11, 13, 18 and 22 need large data grids or files, so they are left out for now.</p>
+  </nav>
+
+  <main>
+    <details class="sheet settings" id="settings" hidden>
+      <summary>Claude connection</summary>
+      <div class="grid2">
+        <div class="field">
+          <label for="apikey">Anthropic API key <span class="hint">— stored only in this browser</span></label>
+          <input id="apikey" type="password" autocomplete="off" placeholder="sk-ant-...">
+        </div>
+        <div class="field">
+          <label for="model">Model</label>
+          <select id="model">
+            <option value="claude-sonnet-5-5">Claude Sonnet 5.5</option>
+            <option value="claude-opus-5-5">Claude Opus 5.5</option>
+            <option value="claude-haiku-5-5">Claude Haiku 5.5</option>
+          </select>
+        </div>
+      </div>
+      <p>Running outside claude.ai, the review calls the Anthropic API directly from your browser with this key. Get a key at console.anthropic.com. Without a key you still get the right/wrong answer check.</p>
+    </details>
+    <div class="mobile-pick field">
+      <label for="pickMobile">Problem</label>
+      <select id="pickMobile"></select>
+    </div>
+
+    <section class="sheet problem" aria-labelledby="ptitle">
+      <div class="eyebrow"><span id="pnum">Problem 1</span><span class="pill open" id="pstate">Open</span><span id="pattempts"></span></div>
+      <h2 id="ptitle"></h2>
+      <div class="statement" id="pstatement"></div>
+    </section>
+
+    <section class="sheet bench" aria-label="Your work">
+      <h3>Your work</h3>
+      <form id="work">
+        <div class="field">
+          <label for="approach">Your reasoning <span class="hint">— how you plan to attack it, in your own words</span></label>
+          <textarea id="approach" placeholder="e.g. Loop through every number below the limit, check divisibility, add the ones that pass…"></textarea>
+        </div>
+        <div class="field">
+          <label for="code">Your code or working <span class="hint">— optional, but the review is sharper with it</span></label>
+          <textarea id="code" spellcheck="false" placeholder="# paste your code or hand working here"></textarea>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="lang">Language</label>
+            <select id="lang">
+              <option>Python</option><option>JavaScript</option><option>Excel / formulas</option><option>C / C++</option><option>Java</option><option>Pen and paper</option><option>Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="answer">Your answer</label>
+            <input id="answer" inputmode="numeric" autocomplete="off" placeholder="the number you got">
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn" type="submit" id="submit">Submit for review</button>
+          <button class="btn ghost" type="button" id="next" hidden>Next problem →</button>
+          <span class="status" id="status" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="sheet review" aria-label="Professor's review">
+      <h3>Professor's review</h3>
+      <div id="verdict"></div>
+      <div class="notes" id="notes"><p class="empty">Submit your work. The review appears here: whether you are right, where your path goes wrong, and the one idea you need next.</p></div>
+      <div class="history" id="history" hidden></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const P = [
+ {n:1,t:"Multiples of 3 or 5",h:"091cc04f594d63d7",s:["If we list all the natural numbers below 10 that are multiples of 3 or 5, we get 3, 5, 6 and 9. The sum of these multiples is 23.","Find the sum of all the multiples of 3 or 5 below 1000."]},
+ {n:2,t:"Even Fibonacci numbers",h:"6452a3d9fd77be6e",s:["Each new term in the Fibonacci sequence is generated by adding the previous two terms. Starting with 1 and 2, the first 10 terms are: 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, …","By considering the terms in the Fibonacci sequence whose values do not exceed four million, find the sum of the even-valued terms."]},
+ {n:3,t:"Largest prime factor",h:"1b3d1ef2eefe75b6",s:["The prime factors of 13195 are 5, 7, 13 and 29.","What is the largest prime factor of the number 600851475143?"]},
+ {n:4,t:"Largest palindrome product",h:"dc9122f5fccda8d3",s:["A palindromic number reads the same both ways. The largest palindrome made from the product of two 2-digit numbers is 9009 = 91 × 99.","Find the largest palindrome made from the product of two 3-digit numbers."]},
+ {n:5,t:"Smallest multiple",h:"a2c75d21b356d4c6",s:["2520 is the smallest number that can be divided by each of the numbers from 1 to 10 without any remainder.","What is the smallest positive number that is evenly divisible by all of the numbers from 1 to 20?"]},
+ {n:6,t:"Sum square difference",h:"09f05920756fa264",s:["The sum of the squares of the first ten natural numbers is 1² + 2² + … + 10² = 385. The square of the sum of the first ten natural numbers is (1 + 2 + … + 10)² = 3025. The difference is 3025 − 385 = 2640.","Find the difference between the sum of the squares of the first one hundred natural numbers and the square of the sum."]},
+ {n:7,t:"10001st prime",h:"3bdf30cb658c9e58",s:["By listing the first six prime numbers: 2, 3, 5, 7, 11, and 13, we can see that the 6th prime is 13.","What is the 10 001st prime number?"]},
+ {n:9,t:"Special Pythagorean triplet",h:"42ea453967956c89",s:["A Pythagorean triplet is a set of three natural numbers, a < b < c, for which a² + b² = c². For example, 3² + 4² = 9 + 16 = 25 = 5².","There exists exactly one Pythagorean triplet for which a + b + c = 1000. Find the product abc."]},
+ {n:10,t:"Summation of primes",h:"5a6c4eca6253bfae",s:["The sum of the primes below 10 is 2 + 3 + 5 + 7 = 17.","Find the sum of all the primes below two million."]},
+ {n:12,t:"Highly divisible triangular number",h:"dd649a6a8ae9512b",s:["The sequence of triangle numbers is generated by adding the natural numbers. The 7th triangle number is 1 + 2 + 3 + 4 + 5 + 6 + 7 = 28. The first ten terms are 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, …","28 is the first triangle number to have over five divisors (1, 2, 4, 7, 14, 28). What is the value of the first triangle number to have over five hundred divisors?"]},
+ {n:14,t:"Longest Collatz sequence",h:"1cfd3ec7a19059a2",s:["Define the sequence for positive integers: n → n/2 if n is even, n → 3n + 1 if n is odd. Starting with 13: 13 → 40 → 20 → 10 → 5 → 16 → 8 → 4 → 2 → 1, a chain of 10 terms.","Which starting number, under one million, produces the longest chain? Once the chain starts, the terms are allowed to go above one million."]},
+ {n:15,t:"Lattice paths",h:"ca5750e0a9894e71",s:["Starting in the top left corner of a 2×2 grid, and only being able to move right and down, there are exactly 6 routes to the bottom right corner.","How many such routes are there through a 20×20 grid?"]},
+ {n:16,t:"Power digit sum",h:"e8f8ccf1aa4216b1",s:["2¹⁵ = 32768 and the sum of its digits is 3 + 2 + 7 + 6 + 8 = 26.","What is the sum of the digits of the number 2¹⁰⁰⁰?"]},
+ {n:17,t:"Number letter counts",h:"6a508e813ca4f50f",s:["If the numbers 1 to 5 are written out in words: one, two, three, four, five, then there are 3 + 3 + 5 + 4 + 4 = 19 letters used in total.","If all the numbers from 1 to 1000 (one thousand) inclusive were written out in words, how many letters would be used? Do not count spaces or hyphens. 342 (three hundred and forty-two) has 23 letters and 115 (one hundred and fifteen) has 20. Use British usage: “and” is included."]},
+ {n:19,t:"Counting Sundays",h:"c89bf215a2ee9368",s:["1 Jan 1900 was a Monday. Thirty days has September, April, June and November; February has 28, or 29 in a leap year; the rest have 31. A leap year is any year evenly divisible by 4, but not on a century unless it is divisible by 400.","How many Sundays fell on the first of the month during the twentieth century (1 Jan 1901 to 31 Dec 2000)?"]},
+ {n:20,t:"Factorial digit sum",h:"aa80088ad32aea9c",s:["n! means n × (n − 1) × … × 3 × 2 × 1. For example, 10! = 3628800, and the sum of its digits is 3 + 6 + 2 + 8 + 8 + 0 + 0 = 27.","Find the sum of the digits in the number 100!"]},
+ {n:21,t:"Amicable numbers",h:"5cd9de2df5d0acbd",s:["Let d(n) be the sum of proper divisors of n (numbers less than n which divide evenly into n). If d(a) = b and d(b) = a, where a ≠ b, then a and b are an amicable pair. For example, d(220) = 284 and d(284) = 220.","Evaluate the sum of all the amicable numbers under 10000."]},
+ {n:23,t:"Non-abundant sums",h:"a654d07c4d33a167",s:["A perfect number equals the sum of its proper divisors (28 = 1 + 2 + 4 + 7 + 14). A number n is abundant if that sum exceeds n. 12 is the smallest abundant number, so 24 is the smallest number that can be written as the sum of two abundant numbers. It can be shown that every integer greater than 28123 can be written as the sum of two abundant numbers.","Find the sum of all the positive integers which cannot be written as the sum of two abundant numbers."]},
+ {n:24,t:"Lexicographic permutations",h:"bdc5bf067a5fd00a",s:["The lexicographic permutations of 0, 1 and 2 are: 012 021 102 120 201 210.","What is the millionth lexicographic permutation of the digits 0, 1, 2, 3, 4, 5, 6, 7, 8 and 9?"]},
+ {n:25,t:"1000-digit Fibonacci number",h:"a5a3f2f18581a31f",s:["The Fibonacci sequence is defined by F₁ = 1, F₂ = 1, Fₙ = Fₙ₋₁ + Fₙ₋₂. The 12th term, F₁₂ = 144, is the first term to contain three digits.","What is the index of the first term in the Fibonacci sequence to contain 1000 digits?"]},
+ {n:26,t:"Reciprocal cycles",h:"a8691abebbeba08d",s:["A unit fraction has 1 in the numerator. 1/7 = 0.(142857) has a 6-digit recurring cycle.","Find the value of d < 1000 for which 1/d contains the longest recurring cycle in its decimal fraction part."]},
+ {n:27,t:"Quadratic primes",h:"4cdd609abce152cb",s:["Euler found that n² + n + 41 gives 40 primes for n = 0 to 39. The formula n² − 79n + 1601 gives 80 primes for n = 0 to 79; the product of its coefficients is −126479.","Considering quadratics n² + an + b with |a| < 1000 and |b| ≤ 1000, find the product of a and b for the one that produces the most primes for consecutive values of n, starting with n = 0."]},
+ {n:28,t:"Number spiral diagonals",h:"816f559567b78dca",s:["Starting with 1 and moving to the right in a clockwise direction, a 5 by 5 spiral is formed. The sum of the numbers on its two diagonals is 101.","What is the sum of the numbers on the diagonals in a 1001 by 1001 spiral formed the same way?"]},
+ {n:29,t:"Distinct powers",h:"27f1197a947c1546",s:["Consider all integer combinations of a^b for 2 ≤ a ≤ 5 and 2 ≤ b ≤ 5. Sorted with repeats removed, there are 15 distinct terms.","How many distinct terms are in the sequence generated by a^b for 2 ≤ a ≤ 100 and 2 ≤ b ≤ 100?"]},
+ {n:30,t:"Digit fifth powers",h:"7870711a175e51f7",s:["Only three numbers can be written as the sum of fourth powers of their digits: 1634, 8208 and 9474 (1 = 1⁴ is not a sum, so it is excluded). Their sum is 19316.","Find the sum of all the numbers that can be written as the sum of fifth powers of their digits."]}
+];
+
+const KEY = "euler-bench-v1";
+let S = {cur:1, solved:{}, tries:{}, drafts:{}, evals:{}, log:{}};
+try{ const raw = localStorage.getItem(KEY); if(raw) S = Object.assign(S, JSON.parse(raw)); }catch(e){}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+const $ = id => document.getElementById(id);
+const byN = n => P.find(p => p.n === n) || P[0];
+
+function esc(s){ return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function inline(s){
+  return s.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+function md(src){
+  const out = []; const lines = src.replace(/\r/g,"").split("\n"); let i = 0; let para = []; let list = null;
+  const flushP = () => { if(para.length){ out.push("<p>"+inline(esc(para.join(" ")))+"</p>"); para = []; } };
+  const flushL = () => { if(list){ out.push("<ul>"+list.map(x=>"<li>"+inline(esc(x))+"</li>").join("")+"</ul>"); list = null; } };
+  while(i < lines.length){
+    const L = lines[i];
+    if(/^```/.test(L)){ flushP(); flushL(); const buf=[]; i++; while(i<lines.length && !/^```/.test(lines[i])){ buf.push(lines[i]); i++; } out.push("<pre><code>"+esc(buf.join("\n"))+"</code></pre>"); i++; continue; }
+    const h = L.match(/^#{1,4}\s+(.*)/);
+    if(h){ flushP(); flushL(); out.push("<h4>"+inline(esc(h[1]))+"</h4>"); i++; continue; }
+    const b = L.match(/^\s*[-*]\s+(.*)/) || L.match(/^\s*\d+[.)]\s+(.*)/);
+    if(b){ flushP(); (list = list || []).push(b[1]); i++; continue; }
+    if(!L.trim()){ flushP(); flushL(); i++; continue; }
+    flushL(); para.push(L.trim()); i++;
+  }
+  flushP(); flushL();
+  return out.join("");
+}
+
+function renderList(){
+  const ul = $("plist"); ul.innerHTML = "";
+  const sel = $("pickMobile"); sel.innerHTML = "";
+  P.forEach(p => {
+    const li = document.createElement("li");
+    const b = document.createElement("button"); b.type = "button";
+    b.setAttribute("aria-current", p.n === S.cur ? "true" : "false");
+    const st = S.solved[p.n] ? "solved" : (S.tries[p.n] ? "tried" : "");
+    b.innerHTML = `<span class="n">#${p.n}</span><span class="t"></span><span class="dot ${st}" aria-hidden="true"></span>`;
+    b.querySelector(".t").textContent = p.t;
+    b.title = p.t + (S.solved[p.n] ? " (solved)" : "");
+    b.addEventListener("click", () => go(p.n));
+    li.appendChild(b); ul.appendChild(li);
+    const o = document.createElement("option"); o.value = p.n; o.textContent = `#${p.n} ${p.t}${S.solved[p.n] ? " ✓" : ""}`; if(p.n===S.cur) o.selected = true; sel.appendChild(o);
+  });
+  const solvedCount = Object.keys(S.solved).length;
+  $("score").textContent = `${solvedCount} / ${P.length} solved`;
+}
+
+function renderProblem(){
+  const p = byN(S.cur);
+  $("pnum").textContent = "Problem " + p.n;
+  $("ptitle").textContent = p.t;
+  $("pstatement").innerHTML = p.s.map(x => "<p>"+esc(x)+"</p>").join("");
+  const solved = !!S.solved[p.n];
+  const pill = $("pstate"); pill.textContent = solved ? "Solved" : "Open"; pill.className = "pill " + (solved ? "solved" : "open");
+  const t = S.tries[p.n] || 0; $("pattempts").textContent = t ? `${t} attempt${t>1?"s":""}` : "";
+  const d = S.drafts[p.n] || {};
+  $("approach").value = d.approach || ""; $("code").value = d.code || ""; $("answer").value = d.answer || "";
+  if(d.lang) $("lang").value = d.lang;
+  $("next").hidden = !solved || P.indexOf(p) === P.length-1;
+  $("status").textContent = "";
+  const ev = S.evals[p.n];
+  renderVerdict(ev ? ev.verdict : null);
+  $("notes").innerHTML = ev && ev.text ? md(ev.text) : '<p class="empty">Submit your work. The review appears here: whether you are right, where your path goes wrong, and the one idea you need next.</p>';
+  const log = S.log[p.n] || [];
+  const h = $("history");
+  if(log.length){ h.hidden = false; h.textContent = "Answers tried: " + log.map(x => `${x.a || "—"} ${x.v==="ok"?"✓":x.v==="bad"?"✗":"?"}`).join("   "); } else h.hidden = true;
+}
+
+function renderVerdict(v){
+  const el = $("verdict");
+  if(!v){ el.innerHTML = ""; return; }
+  const m = {ok:["ok","Correct answer."], bad:["bad","Wrong answer."], none:["none","No answer submitted. Reviewing your reasoning only."], unk:["none","Answer could not be checked in this browser."]}[v];
+  el.innerHTML = `<div class="verdict ${m[0]}">${m[1]}</div>`;
+}
+
+function go(n){ persistDraft(); S.cur = n; save(); renderList(); renderProblem(); window.scrollTo({top:0}); }
+
+function persistDraft(){
+  S.drafts[S.cur] = {approach:$("approach").value, code:$("code").value, answer:$("answer").value, lang:$("lang").value};
+}
+
+async function hashOf(a){
+  try{
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("pe:"+a));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,16);
+  }catch(e){ return null; }
+}
+
+let samplerP = null;
+function sampler(){
+  if(!samplerP) samplerP = (window.claude && window.claude.use) ? window.claude.use("sample").catch(()=>null) : Promise.resolve(null);
+  return samplerP;
+}
+const SKEY = "euler-bench-api";
+let API = {key:"", model:"claude-sonnet-5-5"};
+try{ const r = localStorage.getItem(SKEY); if(r) API = Object.assign(API, JSON.parse(r)); }catch(e){}
+function saveApi(){ try{ localStorage.setItem(SKEY, JSON.stringify(API)); }catch(e){} }
+
+async function callApi(prompt, onText){
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"content-type":"application/json","x-api-key":API.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body: JSON.stringify({model:API.model, max_tokens:1500, stream:true, messages:[{role:"user", content:prompt}]})
+  });
+  if(!res.ok){
+    let m = "HTTP " + res.status;
+    try{ const j = await res.json(); if(j.error && j.error.message) m = j.error.message; }catch(e){}
+    const err = new Error(m); err.code = res.status === 401 ? "bad_key" : res.status === 429 ? "rate_limited" : "api"; throw err;
+  }
+  const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "", text = "";
+  for(;;){
+    const {value, done} = await reader.read(); if(done) break;
+    buf += dec.decode(value, {stream:true});
+    let i;
+    while((i = buf.indexOf("\n")) >= 0){
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i+1);
+      if(!line.startsWith("data:")) continue;
+      try{ const ev = JSON.parse(line.slice(5)); if(ev.type === "content_block_delta" && ev.delta && ev.delta.text){ text += ev.delta.text; onText(text); } }catch(e){}
+    }
+  }
+  return text;
+}
+
+/* One reviewer: claude.ai runtime when present, else the API key. Returns null when neither is available. */
+async function review(prompt, onText){
+  const sample = await sampler();
+  if(sample){
+    const r = await sample(prompt, {modelTier:"default", cache:false, onText:({text}) => { if(text) onText(text); }});
+    return (r && r.text) || "";
+  }
+  if(API.key) return callApi(prompt, onText);
+  return null;
+}
+
+function buildPrompt(p, verdict, d, attempt){
+  const vtxt = {ok:"CORRECT (matches the official answer)", bad:"INCORRECT (does not match the official answer)", none:"NOT GIVEN", unk:"UNCHECKED"}[verdict];
+  return `You are a university professor of mathematics and computer science coaching one student, Gilang, through Project Euler. You are direct and plain-spoken. No praise padding, no motivational filler, no emojis. Talk to him as "you".
+
+HARD RULES
+- Never state the final numeric answer to this problem, and never write a complete working solution for it.
+- If his answer is INCORRECT: find the exact step, line, assumption or off-by-one that sends him wrong. Quote it. Explain why it is wrong. Then teach the concept that fixes it, using a tiny example on small numbers (never the real target input). You may show a short code fragment (max ~6 lines) that illustrates the concept, but not one that solves the problem.
+- If his answer is CORRECT: confirm it, then judge the method: correctness of reasoning, efficiency (state the time complexity), and what would break if the input were 1000× larger. Then teach the better or more elegant idea; here you may show the efficient approach.
+- If he gave no code and thin reasoning, say so and tell him exactly what you need to see.
+- If the code has a bug that does not affect this answer, still point it out.
+- Keep it under 260 words. Use exactly these four headings, with "## " in front:
+## Verdict
+## Where your path breaks
+## Quick lesson
+## Your next move
+(If he is correct, the second heading still appears; use it for the weaknesses in his method.)
+
+PROBLEM ${p.n}: ${p.t}
+${p.s.join("\n")}
+
+ANSWER CHECK: ${vtxt}
+ATTEMPT NUMBER ON THIS PROBLEM: ${attempt}
+
+HIS REASONING:
+${d.approach.trim() || "(none given)"}
+
+HIS CODE / WORKING (${d.lang}):
+${d.code.trim() || "(none given)"}
+
+HIS ANSWER: ${d.answer.trim() || "(none given)"}`;
+}
+
+let busy = false;
+$("work").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  if(busy) return;
+  persistDraft();
+  const p = byN(S.cur); const d = S.drafts[p.n];
+  if(!d.approach.trim() && !d.code.trim() && !d.answer.trim()){ $("status").textContent = "Write your reasoning, code or answer first."; return; }
+  busy = true; $("submit").disabled = true;
+
+  const ans = d.answer.trim().replace(/[\s,_.]/g, "").replace(/^\+/, "");
+  let verdict = "none";
+  if(ans){ const h = await hashOf(ans); verdict = h === null ? "unk" : (h === p.h ? "ok" : "bad"); }
+  S.tries[p.n] = (S.tries[p.n] || 0) + 1;
+  if(verdict === "ok") S.solved[p.n] = true;
+  (S.log[p.n] = S.log[p.n] || []).push({a: ans, v: verdict});
+  S.evals[p.n] = {verdict, text:""};
+  save(); renderList(); renderProblem();
+  renderVerdict(verdict);
+  $("notes").innerHTML = '<p class="empty">The professor is reading your work…</p>';
+  $("status").textContent = "Reviewing…";
+
+  try{
+    const text = await review(buildPrompt(p, verdict, d, S.tries[p.n]), t => { $("notes").innerHTML = md(t); });
+    if(text === null){
+      $("notes").innerHTML = '<p class="empty">No reviewer connected. Open "Claude connection" at the top and add your API key, or open this app on claude.ai. The answer check above still works.</p>';
+      $("settings").open = true;
+    }else{
+      $("notes").innerHTML = md(text);
+      S.evals[p.n] = {verdict, text}; save();
+    }
+  }catch(e){
+    const msg = e && e.code === "rate_limited" ? "Too many reviews in a short time. Wait a minute and submit again."
+      : e && e.code === "not_granted" ? "Claude access was not allowed for this page, so only the answer check ran."
+      : e && e.code === "bad_key" ? "The API key was rejected. Check it under Claude connection."
+      : "The review did not come through (" + ((e && e.message) || "unknown error") + "). Submit again.";
+    $("notes").innerHTML = `<p class="empty">${esc(msg)}</p>`;
+  }
+  $("status").textContent = "";
+  busy = false; $("submit").disabled = false;
+});
+
+$("next").addEventListener("click", () => { const i = P.findIndex(p => p.n === S.cur); if(i < P.length-1) go(P[i+1].n); });
+$("pickMobile").addEventListener("change", e => go(+e.target.value));
+["approach","code","answer","lang"].forEach(id => $(id).addEventListener("input", () => { persistDraft(); save(); }));
+$("code").addEventListener("keydown", e => {
+  if(e.key === "Tab" && !e.shiftKey){ e.preventDefault(); const t = e.target, s = t.selectionStart; t.setRangeText("    ", s, t.selectionEnd, "end"); persistDraft(); save(); }
+});
+
+renderList(); renderProblem();
+sampler().then(s => {
+  if(s) return;
+  $("settings").hidden = false;
+  $("apikey").value = API.key; $("model").value = API.model;
+  if(!API.key) $("settings").open = true;
+});
+$("apikey").addEventListener("change", e => { API.key = e.target.value.trim(); saveApi(); });
+$("model").addEventListener("change", e => { API.model = e.target.value; saveApi(); });
+</script>
+
+</body>
+</html>
